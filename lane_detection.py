@@ -109,8 +109,9 @@ def pipeline(img, s_thresh=(160, 230),l_thresh = (200, 210), sx_thresh=(35, 255)
         plt.figure()
         plt.title('Combined S,R channel and gradient thresholds')
         plt.imshow(combined_binary, cmap='gray')
-        plt.imsave('./images/binary_combo_example')
+        plt.savefig('./images/binary_combo_example.jpg')
 
+        '''
         f, (ax1, ax2,ax3) = plt.subplots(1, 3, figsize=(20, 10))
         ax1.set_title('Original image')
         ax1.imshow(img)
@@ -120,17 +121,12 @@ def pipeline(img, s_thresh=(160, 230),l_thresh = (200, 210), sx_thresh=(35, 255)
 
         ax3.set_title('Combined S channel and gradient thresholds')
         ax3.imshow(color_binary, cmap='gray')
+        '''
 
     # Perspective Transform
-    warp_img, M, Minv = warper(combined_binary)
 
-    if plot:
-        #output = np.array(cv2.merge((warped, warped, warped)))
-        f, (ax1, ax2) = plt.subplots(1, 2, figsize=(20, 10))
-        ax1.set_title('Original image')
-        ax1.imshow(img)
-        ax2.set_title('Warped image')
-        ax2.imshow(warp_img)
+    #warp_img, M, Minv = warper(undist, plot=True)
+    warp_img, M, Minv = warper(combined_binary,plot=False)
 
     warp_binary = cv2.cvtColor(warp_img, cv2.COLOR_RGB2GRAY)
 
@@ -141,9 +137,9 @@ def pipeline(img, s_thresh=(160, 230),l_thresh = (200, 210), sx_thresh=(35, 255)
     left_fit= []
     right_fit = []
     if len(left_lane.current_fit)>0 and len(right_lane.current_fit)>0 :
-        left_fit, right_fit = find_following_lines(warp_binary, left_lane.current_fit, right_lane.current_fit)
+        left_fit, right_fit = find_following_lines(warp_binary, left_lane.current_fit, right_lane.current_fit,plot=True)
     else:
-        left_fit, right_fit = find_first_lines(warp_binary)
+        left_fit, right_fit = find_first_lines(warp_binary,plot=True)
 
 
 
@@ -173,7 +169,7 @@ def pipeline(img, s_thresh=(160, 230),l_thresh = (200, 210), sx_thresh=(35, 255)
             right_curverad = ((1 + (2 * right_fit_cr[0] * y_eval * ym_per_pix + right_fit_cr[1]) ** 2) ** 1.5) / np.absolute(
                 2 * right_fit_cr[0])
             # Now our radius of curvature is in meters
-            #print(left_curverad, 'm', right_curverad, 'm')
+            print(left_curverad, 'm', right_curverad, 'm')
 
             check = True
             eps = 2500
@@ -199,9 +195,14 @@ def pipeline(img, s_thresh=(160, 230),l_thresh = (200, 210), sx_thresh=(35, 255)
 
         if update_search:
             left_fit, right_fit = find_following_lines(warp_binary, left_fit, right_fit)
-        if count > 5:
+        if count > 1:
             break
         count +=1
+
+    # no fit was found and no previous fit available
+    if update_search:
+        left_lane.update_current_fit(left_fit, left_curverad, warp_binary)
+        right_lane.update_current_fit(right_fit, right_curverad, warp_binary)
 
     # Create an image to draw the lines on
     warp_zero = np.zeros_like(warp_binary).astype(np.uint8)
@@ -223,12 +224,13 @@ def pipeline(img, s_thresh=(160, 230),l_thresh = (200, 210), sx_thresh=(35, 255)
     result = cv2.cvtColor(result, cv2.COLOR_BGR2RGB)
     #Output visual display of the lane  boundaries and numerical estimation of lane curvature and vehicle position.
     text = 'Radius of curvature ' +str(round(left_lane.radius_of_curvature,2)) +' m'
-    cv2.putText(result,text,(100,100),cv2.FONT_HERSHEY_COMPLEX,1,(255, 255, 255))
+    cv2.putText(result,text,(100,100),cv2.FONT_HERSHEY_COMPLEX,1,(255, 255, 255),thickness=2)
     text = 'Vehicle is '+str(veh_offset)+ ' m left of center'
-    cv2.putText(result,text,(100,150),cv2.FONT_HERSHEY_COMPLEX,1,(255, 255, 255))
+    cv2.putText(result,text,(100,150),cv2.FONT_HERSHEY_COMPLEX,1,(255, 255, 255),thickness=2)
     if plot :
         plt.figure()
         plt.imshow(result)
+        #plt.savefig('./images/example_output.png')
     return result
 
 
@@ -239,8 +241,8 @@ def warper(img, plot = False):
 
     # Manually chosen source points along the lane marking
     top_left_src = [590, 450]
-    top_right_src  = [686, 450]
-    bottom_right_src  = [1132, 720]
+    top_right_src  = [680, 450]
+    bottom_right_src  = [1130, 720]
     bottom_left_src  = [200, 720]
 
     #top_left_src = [590, 450]
@@ -254,14 +256,33 @@ def warper(img, plot = False):
     bottom_right_dst = [980, 720]
     bottom_left_dst = [320, 720]
 
+
     src = np.array([bottom_left_src , bottom_right_src , top_right_src , top_left_src ])
     dst = np.array([bottom_left_dst, bottom_right_dst , top_right_dst , top_left_dst ],np.float32)
 
-    # Draw the windows on the visualization image
-    img = np.array(img,np.float32)
-    img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
-    #cv2.polylines(img, [src], True,(255,0,0), 1)
+    src = np.array(
+        [[(img_size[0] / 2) - 60, img_size[1] / 2 + 100],
+         [((img_size[0] / 6) - 10), img_size[1]],
+         [(img_size[0] * 5 / 6) + 50, img_size[1]],
+         [(img_size[0] / 2 + 65), img_size[1] / 2 + 100]])
 
+    dst = np.float32(
+        [[(img_size[0] / 4), 0],
+         [(img_size[0] / 4), img_size[1]],
+         [(img_size[0] * 3 / 4), img_size[1]],
+         [(img_size[0] * 3 / 4), 0]])
+    #print(src)
+    #print(dst)
+    # Draw the windows on the visualization image
+
+    if plot:
+        #img = np.array(img, np.float32)
+        src_pt = np.int32(src)
+        print(src)
+        cv2.polylines(img, [src_pt], True,(255,0,0), 2)
+    else:
+        img = np.array(img, np.float32)
+        img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
     src = np.float32(src)
     # Perspective transform matrix
     M = cv2.getPerspectiveTransform(src, dst)
@@ -275,12 +296,13 @@ def warper(img, plot = False):
     # Plotting images
     if plot :
         f, (ax1, ax2) = plt.subplots(1, 2, figsize=(20, 10))
-        ax1.set_title('Original image')
+        ax1.set_title('Undistorted image with source points drawn')
         #output_img = np.array(cv2.merge((img, img, img)))
         ax1.imshow(img)
-        ax2.set_title('Warped image')
+        ax2.set_title('Warped result with destination points drawn')
         #output = np.array(cv2.merge((warped, warped, warped)))
         ax2.imshow(warped)
+        plt.savefig('./images/warped_straight_lines.png')
 
 
     return warped, M, Minv
@@ -308,7 +330,7 @@ def find_first_lines(binary_warped,plot=False):
     nonzerox = np.array(nonzero[1])
 
     # Set the width of the windows +/- margin
-    margin = 80
+    margin = 100
     # Set minimum number of pixels found to recenter window
     minpix = 50
     # Create empty lists to receive left and right lane pixel indices
@@ -374,6 +396,7 @@ def find_first_lines(binary_warped,plot=False):
         plt.plot(right_fitx, ploty, color='yellow')
         plt.xlim(0, 1280)
         plt.ylim(720, 0)
+        plt.savefig('./images/color_fit_lines.jpg')
 
     return left_fit,right_fit
 
@@ -384,7 +407,7 @@ def find_following_lines(binary_warped,left_fit,right_fit,plot=False):
     nonzero = binary_warped.nonzero()
     nonzeroy = np.array(nonzero[0])
     nonzerox = np.array(nonzero[1])
-    margin = 50
+    margin = 100
     left_lane_inds = ((nonzerox > (left_fit[0] * (nonzeroy ** 2) + left_fit[1] * nonzeroy + left_fit[2] - margin)) & (
     nonzerox < (left_fit[0] * (nonzeroy ** 2) + left_fit[1] * nonzeroy + left_fit[2] + margin)))
     right_lane_inds = (
@@ -431,6 +454,7 @@ def find_following_lines(binary_warped,left_fit,right_fit,plot=False):
         plt.plot(right_fitx, ploty, color='yellow')
         plt.xlim(0, 1280)
         plt.ylim(720, 0)
+        plt.savefig('./images/color_fit_lines.jpg')
     return left_fit,right_fit
 
 
@@ -633,7 +657,7 @@ class Line():
         self.best_fit = np.array([a/idx,b/idx,c/idx])
 
 
-images = glob.glob('test_images/test1.jpg')
+images = glob.glob('test_images/straight*.jpg')
 
 for fname in images:
     img = cv2.imread(fname)
