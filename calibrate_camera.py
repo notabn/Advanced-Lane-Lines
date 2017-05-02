@@ -78,6 +78,6 @@ ax1.set_title('Original Image', fontsize=30)
 ax2.imshow(dst)
 ax2.set_title('Undistorted Image', fontsize=30)
 plt.show()
-plt.imsave('undistort_output.png')
+plt.savefig('undistort_output.png')
 print('done')
 

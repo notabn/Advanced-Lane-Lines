@@ -105,11 +105,17 @@ def pipeline(img, s_thresh=(160, 230),l_thresh = (200, 210), sx_thresh=(35, 255)
     combined_binary[ (binary_red == 1) | (grad_binary == 1)| (s_binary == 1) ] = 1
 
     if plot:
+
+        plt.figure()
+        plt.title('Combined S,R channel and gradient thresholds')
+        plt.imshow(combined_binary, cmap='gray')
+        plt.imsave('./images/binary_combo_example')
+
         f, (ax1, ax2,ax3) = plt.subplots(1, 3, figsize=(20, 10))
         ax1.set_title('Original image')
         ax1.imshow(img)
 
-        ax2.set_title('Combined S channel and gradient thresholds')
+        ax2.set_title('Combined S,R channel and gradient thresholds')
         ax2.imshow(combined_binary, cmap='gray')
 
         ax3.set_title('Combined S channel and gradient thresholds')
@@ -128,18 +134,18 @@ def pipeline(img, s_thresh=(160, 230),l_thresh = (200, 210), sx_thresh=(35, 255)
 
     warp_binary = cv2.cvtColor(warp_img, cv2.COLOR_RGB2GRAY)
 
-    '''
-    if len(left_fit)>0 and len(right_fit)>0 :
 
-
-    else:
-        left_fit, right_fit = find_first_lines(warp_binary)
-
-    '''
     update_search = True
     count = 0
     veh_offset = 0
-    left_fit, right_fit = sliding_window_search(warp_binary,plot = True)
+    left_fit= []
+    right_fit = []
+    if len(left_lane.current_fit)>0 and len(right_lane.current_fit)>0 :
+        left_fit, right_fit = find_following_lines(warp_binary, left_lane.current_fit, right_lane.current_fit)
+    else:
+        left_fit, right_fit = find_first_lines(warp_binary)
+
+
 
     while update_search:
         if len(left_fit ) > 0 and len(right_fit) >0 :
@@ -170,7 +176,7 @@ def pipeline(img, s_thresh=(160, 230),l_thresh = (200, 210), sx_thresh=(35, 255)
             #print(left_curverad, 'm', right_curverad, 'm')
 
             check = True
-            eps = 1500
+            eps = 2500
             # check for similar curvature
             if abs(left_curverad - right_curverad) > eps:
                 check = check & False
@@ -180,8 +186,6 @@ def pipeline(img, s_thresh=(160, 230),l_thresh = (200, 210), sx_thresh=(35, 255)
 
             if current_lane_width > lane_width :
                 check = check & False
-
-            #check = True
 
             if check:
                 left_lane.update_current_fit(left_fit,left_curverad,warp_binary)
@@ -194,7 +198,7 @@ def pipeline(img, s_thresh=(160, 230),l_thresh = (200, 210), sx_thresh=(35, 255)
                 update_search = False
 
         if update_search:
-            left_fit, right_fit = find_first_lines(warp_binary)
+            left_fit, right_fit = find_following_lines(warp_binary, left_fit, right_fit)
         if count > 5:
             break
         count +=1
@@ -373,14 +377,14 @@ def find_first_lines(binary_warped,plot=False):
 
     return left_fit,right_fit
 
-def find_following_lines(binary_warped,left_fit,right_fit):
+def find_following_lines(binary_warped,left_fit,right_fit,plot=False):
     # Assume you now have a new warped binary image
     # from the next frame of video (also called "binary_warped")
     # It's now much easier to find line pixels!
     nonzero = binary_warped.nonzero()
     nonzeroy = np.array(nonzero[0])
     nonzerox = np.array(nonzero[1])
-    margin = 100
+    margin = 50
     left_lane_inds = ((nonzerox > (left_fit[0] * (nonzeroy ** 2) + left_fit[1] * nonzeroy + left_fit[2] - margin)) & (
     nonzerox < (left_fit[0] * (nonzeroy ** 2) + left_fit[1] * nonzeroy + left_fit[2] + margin)))
     right_lane_inds = (
@@ -419,13 +423,14 @@ def find_following_lines(binary_warped,left_fit,right_fit):
     cv2.fillPoly(window_img, np.int_([left_line_pts]), (0, 255, 0))
     cv2.fillPoly(window_img, np.int_([right_line_pts]), (0, 255, 0))
     result = cv2.addWeighted(out_img, 1, window_img, 0.3, 0)
-    plt.figure()
-    plt.title('window search')
-    plt.imshow(result)
-    plt.plot(left_fitx, ploty, color='yellow')
-    plt.plot(right_fitx, ploty, color='yellow')
-    plt.xlim(0, 1280)
-    plt.ylim(720, 0)
+    if plot:
+        plt.figure()
+        plt.title('window search')
+        plt.imshow(result)
+        plt.plot(left_fitx, ploty, color='yellow')
+        plt.plot(right_fitx, ploty, color='yellow')
+        plt.xlim(0, 1280)
+        plt.ylim(720, 0)
     return left_fit,right_fit
 
 
@@ -627,8 +632,8 @@ class Line():
         idx += 1
         self.best_fit = np.array([a/idx,b/idx,c/idx])
 
-'''
-images = glob.glob('test_images/test*.jpg')
+
+images = glob.glob('test_images/test1.jpg')
 
 for fname in images:
     img = cv2.imread(fname)
@@ -640,7 +645,7 @@ for fname in images:
     #ax2.set_title('Undistorted Image', fontsize=30)
     left_lane = Line()
     right_lane = Line()
-    pipeline(img,plot=False)
+    pipeline(img,plot=True)
 
 
 plt.show()
@@ -656,4 +661,4 @@ white_clip = clip1.fl_image(pipeline)  # NOTE: this function expects color image
 white_clip.write_videofile(detection_output, audio=False)
 
 
-
+'''
