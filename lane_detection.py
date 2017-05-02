@@ -68,20 +68,20 @@ def calc_x_offset(img,offset_x,lane_width):
     return offset_m
 
 # Edit this function to create your own pipeline.
-def pipeline(img, s_thresh=(170, 230),l_thresh = (170, 230), sx_thresh=(25, 255),ksize=15,plot = False):
+def pipeline(img, s_thresh=(160, 230),l_thresh = (200, 210), sx_thresh=(35, 255),ksize=15,plot = False):
 
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     undist = cv2.undistort(img, mtx, dist, None, mtx)
 
     R = undist[:, :, 0]
-    thresh_red = (220, 255)
+    thresh_red = (221, 255)
     binary_red = np.zeros_like(R)
-    binary_red[(R > thresh_red[0]) & (R <= thresh_red[1])] = 1
+    binary_red[(R >= thresh_red[0]) & (R <= thresh_red[1])] = 1
 
     # Convert to HLV color space and separate the V channel
-    hls = cv2.cvtColor(undist, cv2.COLOR_RGB2HSV).astype(np.float)
-    l_channel = hls[:,:,2]
-    s_channel = hls[:,:,1]
+    hls = cv2.cvtColor(undist, cv2.COLOR_RGB2HLS).astype(np.float)
+    l_channel = hls[:,:,1]
+    s_channel = hls[:,:,2]
 
     # Threshold gradient
     gradx = abs_sobel_thresh(l_channel, orient='x', sobel_size = ksize, thresh=sx_thresh)
@@ -93,18 +93,16 @@ def pipeline(img, s_thresh=(170, 230),l_thresh = (170, 230), sx_thresh=(25, 255)
 
 
     # Threshold color channel
-    #l_binary = np.zeros_like(l_channel)
-    #l_binary[(l_channel >= l_thresh[0]) & (l_channel < l_thresh[1])] = 1
 
     s_binary = np.zeros_like(s_channel)
     s_binary[(s_channel >= s_thresh[0]) & (s_channel < s_thresh[1])] = 1
     # Stack each channel
     # Note color_binary[:, :, 0] is all 0s, effectively an all black image. It might
     # be beneficial to replace this channel with something else.
-    color_binary = np.dstack((binary_red, grad_binary, s_binary))
+    color_binary = np.dstack(( binary_red, s_binary,grad_binary))
     # Combine the two binary thresholds
     combined_binary = np.zeros_like(grad_binary)
-    combined_binary[ (grad_binary == 1)| ((s_binary == 1) ) | (binary_red == 1) ] = 1
+    combined_binary[ (binary_red == 1) | (grad_binary == 1)| (s_binary == 1) ] = 1
 
     if plot:
         f, (ax1, ax2,ax3) = plt.subplots(1, 3, figsize=(20, 10))
@@ -172,22 +170,25 @@ def pipeline(img, s_thresh=(170, 230),l_thresh = (170, 230), sx_thresh=(25, 255)
             #print(left_curverad, 'm', right_curverad, 'm')
 
             check = True
-            eps = 2000
+            eps = 1500
             # check for similar curvature
             if abs(left_curverad - right_curverad) > eps:
                 check = check & False
             # check distance between lanes
             lane_width = 800
             current_lane_width = np.mean(abs(left_fitx- right_fitx))
+
             if current_lane_width > lane_width :
                 check = check & False
+
+            #check = True
 
             if check:
                 left_lane.update_current_fit(left_fit,left_curverad,warp_binary)
                 right_lane.update_current_fit(right_fit,right_curverad,warp_binary)
                 update_search = False
 
-            if not check and (len(left_lane.current_fit) > 0 or left_lane.detected == False):
+            if not check and (len(left_lane.current_fit) > 0 and left_lane.detected == False):
                 left_lane.recover_last_fit(warp_binary)
                 right_lane.recover_last_fit(warp_binary)
                 update_search = False
@@ -221,7 +222,9 @@ def pipeline(img, s_thresh=(170, 230),l_thresh = (170, 230), sx_thresh=(25, 255)
     cv2.putText(result,text,(100,100),cv2.FONT_HERSHEY_COMPLEX,1,(255, 255, 255))
     text = 'Vehicle is '+str(veh_offset)+ ' m left of center'
     cv2.putText(result,text,(100,150),cv2.FONT_HERSHEY_COMPLEX,1,(255, 255, 255))
-
+    if plot :
+        plt.figure()
+        plt.imshow(result)
     return result
 
 
@@ -232,9 +235,9 @@ def warper(img, plot = False):
 
     # Manually chosen source points along the lane marking
     top_left_src = [590, 450]
-    top_right_src  = [680, 450]
-    bottom_right_src  = [1087, 720]
-    bottom_left_src  = [230, 720]
+    top_right_src  = [686, 450]
+    bottom_right_src  = [1132, 720]
+    bottom_left_src  = [200, 720]
 
     #top_left_src = [590, 450]
     #top_right_src  = [680, 450]
@@ -624,7 +627,7 @@ class Line():
         idx += 1
         self.best_fit = np.array([a/idx,b/idx,c/idx])
 
-
+'''
 images = glob.glob('test_images/test*.jpg')
 
 for fname in images:
@@ -637,7 +640,7 @@ for fname in images:
     #ax2.set_title('Undistorted Image', fontsize=30)
     left_lane = Line()
     right_lane = Line()
-    pipeline(img,plot=True)
+    pipeline(img,plot=False)
 
 
 plt.show()
@@ -652,5 +655,5 @@ white_clip = clip1.fl_image(pipeline)  # NOTE: this function expects color image
 
 white_clip.write_videofile(detection_output, audio=False)
 
-'''
+
 

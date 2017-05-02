@@ -49,18 +49,20 @@ for idx, fname in enumerate(images):
         objpoints.append(objp)
         img = cv2.drawChessboardCorners(img, (nx, ny), corners, ret)
         write_name = 'corners_found'+str(idx)+'.jpg'
-        cv2.imwrite(write_name, img)
-        cv2.imshow('img', img)
-        cv2.waitKey(500)
+        #cv2.imwrite(write_name, img)
+        #cv2.imshow('img', img)
+        #cv2.waitKey(500)
 
 cv2.destroyAllWindows()
 
 ret, mtx, dist, rvecs, tvecs = cv2.calibrateCamera(objpoints, imgpoints, gray.shape[::-1], None, None)
 # Save the camera calibration result for later use (we won't worry about rvecs / tvecs)
+'''
 dist_pickle = {}
 dist_pickle["mtx"] = mtx
 dist_pickle["dist"] = dist
 pickle.dump(dist_pickle, open("wide_dist_pickle.p", "wb"))
+'''
 
 # Test undistortion on an image
 img = cv2.imread('camera_cal/calibration1.jpg')
@@ -76,5 +78,6 @@ ax1.set_title('Original Image', fontsize=30)
 ax2.imshow(dst)
 ax2.set_title('Undistorted Image', fontsize=30)
 plt.show()
+plt.imsave('undistort_output.png')
 print('done')
 
